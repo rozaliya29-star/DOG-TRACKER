@@ -1,0 +1,751 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<title>Картотека приюта</title>
+
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#0F9D8B">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Картотека">
+<meta name="mobile-web-app-capable" content="yes">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;700;800&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet">
+<script crossorigin src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+<script crossorigin src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.5/babel.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/firebase/12.16.0/firebase-app-compat.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/firebase/12.16.0/firebase-firestore-compat.min.js"></script>
+<style>
+  * { box-sizing: border-box; }
+  body { margin: 0; }
+  .app-shell {
+    min-height: 100vh;
+    background: #FFF7EA;
+    background-image: radial-gradient(#FF6B4A12 1.5px, transparent 1.5px);
+    background-size: 16px 16px;
+    color: #3A2E22;
+    font-family: 'Inter', sans-serif;
+    padding: 18px 16px 60px;
+  }
+  .loading-shell { display: flex; align-items: center; justify-content: center; }
+  .loading-text { font-family: 'Baloo 2', sans-serif; font-weight: 700; color: #0F9D8B; display: flex; align-items: center; gap: 8px; }
+
+  .app-header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 6px 14px; margin-bottom: 12px;
+    background: linear-gradient(100deg, #0F9D8B, #14B8A6);
+    border-radius: 18px; box-shadow: 0 4px 0 #0B7A6C;
+    flex-wrap: wrap; gap: 10px;
+  }
+  .app-header-left { display: flex; align-items: center; gap: 10px; color: #fff; padding: 8px 0; }
+  .app-icon { background: #FF6B4A; color: #fff; width: 36px; height: 36px; border-radius: 12px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; transform: rotate(-6deg); font-size: 18px; }
+  .app-title { font-family: 'Baloo 2', sans-serif; font-weight: 800; font-size: 19px; color: #fff; }
+  .app-subtitle { font-size: 12px; color: #DFF9F3; font-family: 'JetBrains Mono', monospace; }
+  .save-indicator { font-size: 12px; color: #DFF9F3; display: flex; align-items: center; gap: 4px; }
+  .save-error { color: #FFE1D6; }
+  .retry-btn { background: #FF6B4A; color: #fff; border: none; border-radius: 999px; padding: 5px 10px; font-size: 11px; font-weight: 600; display: flex; align-items: center; gap: 4px; cursor: pointer; }
+
+  .error-banner {
+    display: flex; align-items: center; gap: 8px; background: #FFE9E1; border: 1.5px solid #FF6B4A;
+    color: #B8412A; border-radius: 12px; padding: 10px 14px; font-size: 12.5px; margin-bottom: 12px; line-height: 1.4;
+  }
+  .local-banner {
+    display: flex; flex-wrap: wrap; align-items: center; gap: 10px; background: #FFF1BE; border: 1.5px solid #E0B94A;
+    color: #7A5B00; border-radius: 14px; padding: 12px 14px; font-size: 12.5px; margin-bottom: 12px; line-height: 1.4;
+  }
+  .local-banner-text { flex: 1; min-width: 180px; }
+
+  .backup-actions { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+  .backup-actions-inline { margin-bottom: 12px; }
+  .backup-btn {
+    display: inline-flex; align-items: center; gap: 5px; background: #fff; border: 1.5px solid #E0B94A; color: #7A5B00;
+    border-radius: 999px; padding: 6px 11px; font-size: 12px; font-weight: 700; cursor: pointer;
+  }
+  .backup-btn-ghost { border-color: #FFDCC7; color: #A6957E; }
+  .backup-btn-ghost:hover { border-color: #0F9D8B; color: #0F9D8B; }
+  .hidden-file-input { display: none; }
+  .import-error { width: 100%; font-size: 11.5px; color: #B8412A; }
+
+  .contact-bar { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 16px; }
+  .contact-field { display: flex; align-items: center; gap: 7px; background: #fff; border: 2px dashed #FFCFA8; border-radius: 12px; padding: 8px 12px; flex: 1; min-width: 220px; color: #FF6B4A; }
+  .contact-input { border: none; background: transparent; outline: none; flex: 1; font-size: 13px; color: #3A2E22; font-family: 'Inter', sans-serif; }
+
+  .toolbar { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 16px; }
+  .search-box { display: flex; align-items: center; gap: 6px; background: #fff; border: 2px solid #FFDCC7; border-radius: 999px; padding: 8px 14px; flex: 1; min-width: 200px; color: #B8A08C; }
+  .search-input { border: none; background: transparent; outline: none; flex: 1; font-size: 14px; color: #3A2E22; font-family: 'Inter', sans-serif; }
+  .status-filter { max-width: 170px; border-radius: 999px !important; }
+
+  .input {
+    background: #fff; border: 2px solid #FFE1CC; border-radius: 12px;
+    padding: 8px 10px; font-size: 14px; font-family: 'Inter', sans-serif; color: #3A2E22; outline: none;
+  }
+  .input:focus { border-color: #0F9D8B; }
+  .input-date { max-width: 150px; }
+  .textarea { width: 100%; resize: vertical; font-family: 'Inter', sans-serif; }
+
+  .add-btn {
+    display: inline-flex; align-items: center; gap: 6px; background: #fff; border: 2px solid #0F9D8B;
+    color: #0F9D8B; border-radius: 999px; padding: 8px 14px; font-size: 13px; font-weight: 700; cursor: pointer;
+    transition: transform 0.12s ease;
+  }
+  .add-btn:hover { background: #0F9D8B; color: #fff; transform: translateY(-1px); }
+  .add-btn-primary { background: #FF6B4A; color: #fff; border-color: #FF6B4A; box-shadow: 0 3px 0 #D9522F; }
+  .add-btn-primary:hover { background: #FF6B4A; transform: translateY(-1px); box-shadow: 0 4px 0 #D9522F; }
+
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 12px; }
+  .kcard {
+    position: relative; text-align: left; background: #fff; border: none; border-radius: 16px;
+    padding: 14px 12px 12px; cursor: pointer; border-left: 6px solid var(--stripe, #FFD9E6);
+    box-shadow: 0 3px 10px #3A2E2214; transition: transform 0.12s ease, box-shadow 0.12s ease;
+    font-family: 'Inter', sans-serif;
+  }
+  .kcard:hover { transform: translateY(-3px) rotate(-0.3deg); box-shadow: 0 6px 14px #3A2E2222; }
+  .kcard-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+  .kcard-number { font-family: 'JetBrains Mono', monospace; font-size: 11px; color: #FF6B4A; font-weight: 600; display: flex; align-items: center; gap: 3px; }
+  .kcard-name { font-family: 'Baloo 2', sans-serif; font-weight: 700; font-size: 16px; margin-bottom: 4px; color: #3A2E22; }
+  .kcard-meta { font-size: 12px; color: #A6957E; margin-bottom: 10px; text-transform: capitalize; }
+  .kcard-bottom { display: flex; align-items: center; justify-content: space-between; gap: 6px; }
+  .kcard-age { font-size: 11.5px; color: #0F9D8B; font-weight: 500; }
+
+  .chip { font-family: 'JetBrains Mono', monospace; font-size: 9.5px; font-weight: 700; text-transform: uppercase; border-radius: 999px; padding: 3px 8px; letter-spacing: 0.3px; white-space: nowrap; }
+  .chip-muted { background: #F3ECE2; color: #A6957E; }
+  .chip-good { background: #D7F5E3; color: #1E8A5F; }
+  .chip-warn { background: #FFF1BE; color: #A67A00; }
+
+  .detail { background: #fff; border: none; border-radius: 20px; padding: 22px; max-width: 720px; margin: 0 auto; box-shadow: 0 4px 16px #3A2E2214; }
+  .back-btn { display: inline-flex; align-items: center; gap: 4px; background: none; border: none; color: #0F9D8B; font-size: 13px; font-weight: 700; cursor: pointer; margin-bottom: 14px; padding: 0; }
+  .detail-head { display: flex; align-items: center; gap: 12px; margin-bottom: 18px; }
+  .detail-paw { background: #FFE1CC; color: #FF6B4A; width: 40px; height: 40px; border-radius: 12px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; transform: rotate(-6deg); font-size: 18px; }
+  .detail-headline { display: flex; flex-direction: column; gap: 4px; flex: 1; }
+  .detail-number { font-family: 'JetBrains Mono', monospace; font-size: 12px; color: #FF6B4A; }
+  .detail-name-input { font-family: 'Baloo 2', sans-serif; font-weight: 800; font-size: 23px; background: transparent; border: none; outline: none; border-bottom: 2px dashed transparent; color: #3A2E22; padding: 2px 0; width: 100%; }
+  .detail-name-input:focus { border-bottom-color: #0F9D8B; }
+
+  .detail-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; }
+  .field { display: flex; flex-direction: column; gap: 4px; }
+  .field-label { font-size: 11px; color: #A6957E; font-weight: 700; text-transform: uppercase; letter-spacing: 0.4px; }
+  .ster-readout { display: flex; align-items: center; height: 38px; }
+
+  .section { margin-top: 22px; padding-top: 16px; border-top: 2px dashed #FFE1CC; }
+  .section-title { display: flex; align-items: center; gap: 6px; font-family: 'Baloo 2', sans-serif; font-weight: 700; font-size: 15px; color: #0F9D8B; margin-bottom: 10px; }
+  .ster-hint { font-size: 11.5px; color: #A6957E; margin-top: 8px; font-style: italic; }
+
+  .log-list { display: flex; flex-direction: column; gap: 6px; margin-bottom: 10px; }
+  .log-row { display: flex; align-items: center; gap: 8px; background: #FFF7EA; border-radius: 10px; padding: 7px 10px; font-size: 13px; flex-wrap: wrap; }
+  .log-date { font-family: 'JetBrains Mono', monospace; font-size: 11px; color: #FF6B4A; white-space: nowrap; }
+  .log-tag { font-size: 11px; background: #0F9D8B; color: #fff; padding: 2px 8px; border-radius: 999px; white-space: nowrap; font-weight: 600; }
+  .log-text { flex: 1; color: #3A2E22; }
+  .icon-btn { background: none; border: none; color: #B8A08C; cursor: pointer; padding: 2px; display: flex; font-size: 13px; }
+  .icon-btn:hover { color: #FF6B4A; }
+
+  .empty-hint { font-size: 12px; color: #B8A08C; font-style: italic; }
+
+  .add-row { display: flex; gap: 6px; flex-wrap: wrap; }
+  .add-row-wrap .input { flex: 1; min-width: 120px; }
+
+  .danger-zone { margin-top: 26px; padding-top: 14px; border-top: 2px solid #FFE1CC; }
+  .delete-btn { display: inline-flex; align-items: center; gap: 6px; background: none; border: 2px solid #FF6B4A; color: #FF6B4A; border-radius: 999px; padding: 7px 14px; font-size: 13px; font-weight: 600; cursor: pointer; }
+  .delete-btn:hover { background: #FF6B4A; color: #fff; }
+  .confirm-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 13px; color: #B8412A; }
+  .delete-btn-confirm { background: #FF6B4A; color: #fff; border: none; border-radius: 999px; padding: 6px 12px; font-size: 12px; font-weight: 600; cursor: pointer; }
+  .cancel-btn { background: none; border: 2px solid #FFE1CC; border-radius: 999px; padding: 6px 12px; font-size: 12px; cursor: pointer; color: #3A2E22; }
+
+  @media (max-width: 480px) {
+    .app-title { font-size: 16px; }
+    .grid { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); }
+  }
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<script type="text/babel">
+const { useState, useEffect, useMemo, useRef, useCallback } = React;
+
+const firebaseConfig = {
+  apiKey: "AIzaSyDsfyI5kGKatp36bzDLn81X7ONHhqfCrbQ",
+  authDomain: "dog-tracker-778c0.firebaseapp.com",
+  projectId: "dog-tracker-778c0",
+  storageBucket: "dog-tracker-778c0.firebasestorage.app",
+  messagingSenderId: "1022922333620",
+  appId: "1:1022922333620:web:074273a9c295861f1ae6e1"
+};
+firebase.initializeApp(firebaseConfig);
+const db = firebase.firestore();
+const DOC_REF = db.collection("kartoteka").doc("main");
+
+const STORAGE_KEY = "kennel-card-database-v1"; // used only for the local export/import backup file format
+const SEX_OPTIONS = ["неизвестно", "кобель", "сука"];
+const TREATMENT_TYPES = ["Вакцинация", "От глистов", "От блох/клещей", "Стерилизация", "Ветосмотр", "Другое"];
+const STATUS_OPTIONS = ["ищет дом", "пристроен", "на передержке", "на лечении"];
+const CARD_COLORS = ["#FFD9E6", "#D7F5E3", "#FFF1BE", "#D6E8FF", "#FFE1C2", "#E6DBFF"];
+const EMPTY_META = { city: "", contact: "" };
+
+function pad(n) { return String(n).padStart(3, "0"); }
+function todayISO() { return new Date().toISOString().slice(0, 10); }
+
+function blankDog(num) {
+  return {
+    id: `dog-${Date.now()}-${num}`,
+    number: pad(num),
+    name: `Щенок №${num}`,
+    sex: "неизвестно",
+    color: "",
+    status: "ищет дом",
+    ageEntries: [],
+    treatments: [],
+    notes: "",
+    createdAt: todayISO(),
+  };
+}
+
+function seedDogs(count) {
+  const dogs = [];
+  for (let i = 1; i <= count; i++) dogs.push(blankDog(i));
+  return dogs;
+}
+
+function fmtDate(d) {
+  if (!d) return "";
+  const [y, m, day] = d.split("-");
+  const months = ["янв", "фев", "мар", "апр", "май", "июн", "июл", "авг", "сен", "окт", "ноя", "дек"];
+  return `${day} ${months[parseInt(m, 10) - 1]} ${y}`;
+}
+
+function normalizeLoaded(parsed) {
+  let rawDogs, meta;
+  if (Array.isArray(parsed)) {
+    rawDogs = parsed;
+    meta = { ...EMPTY_META };
+  } else {
+    rawDogs = parsed.dogs || [];
+    meta = { ...EMPTY_META, ...(parsed.meta || {}) };
+  }
+
+  const dogs = rawDogs.map((d) => {
+    let treatments = d.treatments ? [...d.treatments] : [];
+    const status = d.status === "в передержке" ? "на передержке" : (d.status || "ищет дом");
+
+    if (d.sterilized && d.sterilized !== "не стерилизован(а)") {
+      const already = treatments.some((t) => t.type === "Стерилизация");
+      if (!already) {
+        treatments = [
+          ...treatments,
+          {
+            id: `t-migrated-${d.id}`,
+            date: d.createdAt || todayISO(),
+            type: "Стерилизация",
+            note: d.sterilized === "запланирована" ? "запланирована (перенесено со старой карточки)" : "перенесено со старой карточки",
+          },
+        ];
+      }
+    }
+
+    const { sterilized, city, contact, ...rest } = d;
+    return { ...rest, status, treatments };
+  });
+
+  return { meta, dogs };
+}
+
+// Uses a single Firestore document shared by everyone who opens the app —
+// edits from any device show up on every other open device within moments
+// via onSnapshot. If Firestore can't be reached (offline, rules misconfigured,
+// etc.) we fall back to in-memory state so the app still works, and lean on
+// the export/import backup buttons as the safety net.
+function useDB() {
+  const [dogs, setDogs] = useState(null);
+  const [meta, setMeta] = useState(EMPTY_META);
+  const [loading, setLoading] = useState(true);
+  const [saveState, setSaveState] = useState("idle"); // idle | saving | saved | error | local
+  const [storageAvailable, setStorageAvailable] = useState(true);
+  const latest = useRef(null);
+  const seeding = useRef(false);
+
+  const persist = useCallback((next) => {
+    latest.current = next;
+    setDogs(next.dogs);
+    setMeta(next.meta);
+    setSaveState("saving");
+    DOC_REF.set(next)
+      .then(() => {
+        setSaveState("saved");
+        setTimeout(() => setSaveState((s) => (s === "saved" ? "idle" : s)), 1200);
+      })
+      .catch((e) => {
+        console.error("Не удалось сохранить в общую базу:", e);
+        setSaveState("error");
+      });
+  }, []);
+
+  useEffect(() => {
+    const unsubscribe = DOC_REF.onSnapshot(
+      (snap) => {
+        setStorageAvailable(true);
+        if (snap.exists) {
+          const loaded = normalizeLoaded(snap.data());
+          latest.current = loaded;
+          setDogs(loaded.dogs);
+          setMeta(loaded.meta);
+        } else if (!seeding.current) {
+          seeding.current = true;
+          const seeded = { meta: { ...EMPTY_META }, dogs: seedDogs(70) };
+          latest.current = seeded;
+          setDogs(seeded.dogs);
+          setMeta(seeded.meta);
+          DOC_REF.set(seeded).catch((e) => console.error("Не удалось создать начальную базу:", e));
+        }
+        setLoading(false);
+      },
+      (err) => {
+        console.error("Firestore недоступен:", err);
+        setStorageAvailable(false);
+        setSaveState("local");
+        if (!latest.current) {
+          const seeded = { meta: { ...EMPTY_META }, dogs: seedDogs(70) };
+          latest.current = seeded;
+          setDogs(seeded.dogs);
+          setMeta(seeded.meta);
+        }
+        setLoading(false);
+      }
+    );
+    return () => unsubscribe();
+  }, []);
+
+  const retry = useCallback(() => { if (latest.current) persist(latest.current); }, [persist]);
+  const loadFromBackup = useCallback((parsed) => persist(normalizeLoaded(parsed)), [persist]);
+
+  return { dogs, meta, loading, persist, saveState, retry, storageAvailable, loadFromBackup };
+}
+
+function Chip({ children, tone = "muted" }) {
+  return <span className={`chip chip-${tone}`}>{children}</span>;
+}
+
+function lastSterilization(dog) {
+  const entries = dog.treatments.filter((t) => t.type === "Стерилизация");
+  return entries.length ? entries[entries.length - 1] : null;
+}
+
+function DogCard({ dog, index, onOpen }) {
+  const lastAge = dog.ageEntries[dog.ageEntries.length - 1];
+  const ster = lastSterilization(dog);
+  const stripe = CARD_COLORS[index % CARD_COLORS.length];
+  return (
+    <button className="kcard" style={{ "--stripe": stripe }} onClick={() => onOpen(dog.id)}>
+      <div className="kcard-top">
+        <span className="kcard-number">🐾 №{dog.number}</span>
+        {dog.treatments.length > 0 ? (
+          <Chip tone="good">{dog.treatments.length} записей</Chip>
+        ) : (
+          <Chip tone="muted">нет записей</Chip>
+        )}
+      </div>
+      <div className="kcard-name">{dog.name}</div>
+      <div className="kcard-meta">
+        <span>{dog.sex}</span>
+        {dog.color && <span> · {dog.color}</span>}
+      </div>
+      <div className="kcard-bottom">
+        <span className="kcard-age">{lastAge ? lastAge.note : "возраст не указан"}</span>
+        <Chip tone={ster ? "good" : "muted"}>{ster ? "стерил." : "не стерил."}</Chip>
+      </div>
+    </button>
+  );
+}
+
+function Field({ label, children }) {
+  return (
+    <label className="field">
+      <span className="field-label">{label}</span>
+      {children}
+    </label>
+  );
+}
+
+function DogDetail({ dog, onBack, onUpdate, onDelete }) {
+  const [local, setLocal] = useState(dog);
+  const [newAge, setNewAge] = useState("");
+  const [newAgeDate, setNewAgeDate] = useState(todayISO());
+  const [tDate, setTDate] = useState(todayISO());
+  const [tType, setTType] = useState(TREATMENT_TYPES[0]);
+  const [tNote, setTNote] = useState("");
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const debounceTimers = useRef({});
+
+  useEffect(() => setLocal(dog), [dog.id]);
+  useEffect(() => () => {
+    Object.values(debounceTimers.current).forEach((t) => t && t.flush && t.flush());
+  }, []);
+
+  const commitNow = (patch) => {
+    const next = { ...local, ...patch };
+    setLocal(next);
+    onUpdate(next);
+  };
+
+  const commitDebounced = (key, patch, delay = 500) => {
+    const next = { ...local, ...patch };
+    setLocal(next);
+    if (debounceTimers.current[key]) clearTimeout(debounceTimers.current[key].id);
+    const id = setTimeout(() => onUpdate(next), delay);
+    debounceTimers.current[key] = { id, flush: () => onUpdate(next) };
+  };
+
+  const handleBack = () => {
+    Object.values(debounceTimers.current).forEach((t) => t && t.flush && t.flush());
+    onBack();
+  };
+
+  const addAge = () => {
+    if (!newAge.trim()) return;
+    const entry = { id: `a-${Date.now()}`, date: newAgeDate, note: newAge.trim() };
+    commitNow({ ageEntries: [...local.ageEntries, entry] });
+    setNewAge("");
+  };
+
+  const addTreatment = () => {
+    if (!tType) return;
+    const entry = { id: `t-${Date.now()}`, date: tDate, type: tType, note: tNote.trim() };
+    commitNow({ treatments: [...local.treatments, entry] });
+    setTNote("");
+  };
+
+  const removeAge = (id) => commitNow({ ageEntries: local.ageEntries.filter((e) => e.id !== id) });
+  const removeTreatment = (id) => commitNow({ treatments: local.treatments.filter((e) => e.id !== id) });
+
+  const ster = lastSterilization(local);
+
+  return (
+    <div className="detail">
+      <button className="back-btn" onClick={handleBack}>‹ Все карточки</button>
+
+      <div className="detail-head">
+        <div className="detail-paw">🐾</div>
+        <div className="detail-headline">
+          <span className="detail-number">Карточка №{local.number}</span>
+          <input
+            className="detail-name-input"
+            defaultValue={local.name}
+            onChange={(e) => commitDebounced("name", { name: e.target.value })}
+            onBlur={() => debounceTimers.current.name && debounceTimers.current.name.flush()}
+            placeholder="Кличка"
+          />
+        </div>
+      </div>
+
+      <div className="detail-grid">
+        <Field label="Пол">
+          <select className="input" value={local.sex} onChange={(e) => commitNow({ sex: e.target.value })}>
+            {SEX_OPTIONS.map((s) => <option key={s} value={s}>{s}</option>)}
+          </select>
+        </Field>
+        <Field label="Окрас">
+          <input className="input" defaultValue={local.color} onChange={(e) => commitDebounced("color", { color: e.target.value })} onBlur={() => debounceTimers.current.color && debounceTimers.current.color.flush()} placeholder="напр. чёрно-белый" />
+        </Field>
+        <Field label="Статус">
+          <select className="input" value={local.status} onChange={(e) => commitNow({ status: e.target.value })}>
+            {STATUS_OPTIONS.map((s) => <option key={s} value={s}>{s}</option>)}
+          </select>
+        </Field>
+        <Field label="Стерилизация">
+          <div className="ster-readout">
+            {ster ? (
+              <Chip tone="good">стерилизован(а) · {fmtDate(ster.date)}</Chip>
+            ) : (
+              <Chip tone="muted">не стерилизован(а)</Chip>
+            )}
+          </div>
+        </Field>
+      </div>
+
+      <section className="section">
+        <div className="section-title">📅 Возраст</div>
+        <div className="log-list">
+          {local.ageEntries.length === 0 && <div className="empty-hint">Записей ещё нет — добавьте первую оценку возраста.</div>}
+          {local.ageEntries.slice().reverse().map((e) => (
+            <div key={e.id} className="log-row">
+              <span className="log-date">{fmtDate(e.date)}</span>
+              <span className="log-text">{e.note}</span>
+              <button className="icon-btn" onClick={() => removeAge(e.id)}>✕</button>
+            </div>
+          ))}
+        </div>
+        <div className="add-row">
+          <input type="date" className="input input-date" value={newAgeDate} onChange={(e) => setNewAgeDate(e.target.value)} />
+          <input className="input" placeholder="напр. примерно 2 месяца" value={newAge} onChange={(e) => setNewAge(e.target.value)} />
+          <button className="add-btn" onClick={addAge}>➕ Добавить</button>
+        </div>
+      </section>
+
+      <section className="section">
+        <div className="section-title">💉 Прививки, обработки и стерилизация</div>
+        <div className="log-list">
+          {local.treatments.length === 0 && <div className="empty-hint">Пока не отмечено ни одной записи.</div>}
+          {local.treatments.slice().reverse().map((e) => (
+            <div key={e.id} className="log-row">
+              <span className="log-date">{fmtDate(e.date)}</span>
+              <span className="log-tag">{e.type}</span>
+              <span className="log-text">{e.note}</span>
+              <button className="icon-btn" onClick={() => removeTreatment(e.id)}>✕</button>
+            </div>
+          ))}
+        </div>
+        <div className="add-row add-row-wrap">
+          <input type="date" className="input input-date" value={tDate} onChange={(e) => setTDate(e.target.value)} />
+          <select className="input" value={tType} onChange={(e) => setTType(e.target.value)}>
+            {TREATMENT_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
+          </select>
+          <input className="input" placeholder="заметка (препарат, доза, клиника...)" value={tNote} onChange={(e) => setTNote(e.target.value)} />
+          <button className="add-btn" onClick={addTreatment}>➕ Добавить</button>
+        </div>
+        <div className="ster-hint">Чтобы отметить стерилизацию, выберите тип «Стерилизация» и укажите дату — статус выше обновится автоматически.</div>
+      </section>
+
+      <section className="section">
+        <div className="section-title">📝 Особые заметки</div>
+        <textarea
+          className="input textarea"
+          rows={4}
+          defaultValue={local.notes}
+          onChange={(e) => commitDebounced("notes", { notes: e.target.value })}
+          onBlur={() => debounceTimers.current.notes && debounceTimers.current.notes.flush()}
+          placeholder="характер, особенности здоровья, кому подойдёт..."
+        />
+      </section>
+
+      <div className="danger-zone">
+        {!confirmDelete ? (
+          <button className="delete-btn" onClick={() => setConfirmDelete(true)}>🗑️ Удалить карточку</button>
+        ) : (
+          <div className="confirm-row">
+            <span>⚠️ Удалить карточку «{local.name}» без возможности восстановления?</span>
+            <button className="delete-btn-confirm" onClick={() => onDelete(local.id)}>Да, удалить</button>
+            <button className="cancel-btn" onClick={() => setConfirmDelete(false)}>Отмена</button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function SharedContactBar({ meta, onChange }) {
+  const [local, setLocal] = useState(meta);
+  const timers = useRef({});
+
+  useEffect(() => setLocal(meta), [meta.city, meta.contact]);
+
+  const commitDebounced = (key, patch, delay = 500) => {
+    const next = { ...local, ...patch };
+    setLocal(next);
+    if (timers.current[key]) clearTimeout(timers.current[key].id);
+    const id = setTimeout(() => onChange(next), delay);
+    timers.current[key] = { id, flush: () => onChange(next) };
+  };
+
+  return (
+    <div className="contact-bar">
+      <div className="contact-field">
+        <span>📍</span>
+        <input
+          className="contact-input"
+          placeholder="Город (общий для всей картотеки)"
+          defaultValue={local.city}
+          onChange={(e) => commitDebounced("city", { city: e.target.value })}
+          onBlur={() => timers.current.city && timers.current.city.flush()}
+        />
+      </div>
+      <div className="contact-field">
+        <span>☎️</span>
+        <input
+          className="contact-input"
+          placeholder="Контакт для связи (телефон / соцсеть)"
+          defaultValue={local.contact}
+          onChange={(e) => commitDebounced("contact", { contact: e.target.value })}
+          onBlur={() => timers.current.contact && timers.current.contact.flush()}
+        />
+      </div>
+    </div>
+  );
+}
+
+function App() {
+  const { dogs, meta, loading, persist, saveState, retry, storageAvailable, loadFromBackup } = useDB();
+  const [openId, setOpenId] = useState(null);
+  const [query, setQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState("все");
+  const [importError, setImportError] = useState("");
+  const fileInputRef = useRef(null);
+
+  const filtered = useMemo(() => {
+    if (!dogs) return [];
+    return dogs.filter((d) => {
+      const matchesQuery = !query || d.name.toLowerCase().includes(query.toLowerCase()) || d.number.includes(query);
+      const matchesStatus = statusFilter === "все" || d.status === statusFilter;
+      return matchesQuery && matchesStatus;
+    });
+  }, [dogs, query, statusFilter]);
+
+  const openDog = openId && dogs ? dogs.find((d) => d.id === openId) : null;
+
+  const updateDog = (updated) => {
+    const nextDogs = dogs.map((d) => (d.id === updated.id ? updated : d));
+    persist({ meta, dogs: nextDogs });
+  };
+
+  const deleteDog = (id) => {
+    persist({ meta, dogs: dogs.filter((d) => d.id !== id) });
+    setOpenId(null);
+  };
+
+  const addDog = () => {
+    const maxNum = dogs.reduce((m, d) => Math.max(m, parseInt(d.number, 10) || 0), 0);
+    const newDog = blankDog(maxNum + 1);
+    persist({ meta, dogs: [...dogs, newDog] });
+    setOpenId(newDog.id);
+  };
+
+  const updateMeta = (nextMeta) => persist({ meta: nextMeta, dogs });
+
+  const downloadBackup = () => {
+    const payload = { meta, dogs };
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    const stamp = new Date().toISOString().slice(0, 16).replace(/[:T]/g, "-");
+    a.href = url;
+    a.download = `kartoteka-priyuta-${stamp}.json`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  };
+
+  const triggerImport = () => fileInputRef.current && fileInputRef.current.click();
+
+  const handleImportFile = (e) => {
+    const file = e.target.files && e.target.files[0];
+    e.target.value = "";
+    if (!file) return;
+    setImportError("");
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        const parsed = JSON.parse(reader.result);
+        loadFromBackup(parsed);
+      } catch (err) {
+        setImportError("Не получилось прочитать файл — убедитесь, что это резервная копия, скачанная отсюда же.");
+      }
+    };
+    reader.onerror = () => setImportError("Не получилось прочитать файл.");
+    reader.readAsText(file);
+  };
+
+  if (loading || !dogs) {
+    return <div className="app-shell loading-shell"><div className="loading-text">🐾 Открываем картотеку…</div></div>;
+  }
+
+  const placed = dogs.filter((d) => d.status === "пристроен").length;
+
+  return (
+    <div className="app-shell">
+      <header className="app-header">
+        <div className="app-header-left">
+          <div className="app-icon">❤️</div>
+          <div>
+            <div className="app-title">Картотека приюта</div>
+            <div className="app-subtitle">{dogs.length} карточек · {placed} пристроено · 🔄 общая база</div>
+          </div>
+        </div>
+        <div className={`save-indicator save-${saveState}`}>
+          {saveState === "saved" && "✅ сохранено"}
+          {saveState === "error" && (
+            <button className="retry-btn" onClick={retry}>🔄 не сохранилось, повторить</button>
+          )}
+          {saveState === "local" && (
+            <button className="retry-btn" onClick={retry}>📴 офлайн, проверить снова</button>
+          )}
+        </div>
+      </header>
+
+      {saveState === "error" && (
+        <div className="error-banner">
+          ⚠️ Последнее изменение не сохранилось в общей базе. Нажмите «повторить» справа вверху — данные пока хранятся только на этом экране.
+        </div>
+      )}
+
+      {!storageAvailable && (
+        <div className="local-banner">
+          <span>📴</span>
+          <div className="local-banner-text">
+            Нет связи с общей базой (проверьте интернет) — изменения хранятся только на этом экране и не видны на других устройствах, пока связь не восстановится. Скачайте резервную копию, если сейчас важные правки.
+          </div>
+          <div className="backup-actions">
+            <button className="backup-btn" onClick={downloadBackup}>⬇️ Скачать копию</button>
+            <button className="backup-btn" onClick={triggerImport}>⬆️ Загрузить копию</button>
+          </div>
+          {importError && <div className="import-error">{importError}</div>}
+          <input ref={fileInputRef} type="file" accept="application/json" className="hidden-file-input" onChange={handleImportFile} />
+        </div>
+      )}
+
+      {storageAvailable && (
+        <div className="backup-actions backup-actions-inline">
+          <button className="backup-btn backup-btn-ghost" onClick={downloadBackup}>⬇️ Скачать копию</button>
+          <button className="backup-btn backup-btn-ghost" onClick={triggerImport}>⬆️ Загрузить копию</button>
+          {importError && <div className="import-error">{importError}</div>}
+          <input ref={fileInputRef} type="file" accept="application/json" className="hidden-file-input" onChange={handleImportFile} />
+        </div>
+      )}
+
+      <SharedContactBar meta={meta} onChange={updateMeta} />
+
+      {!openDog ? (
+        <React.Fragment>
+          <div className="toolbar">
+            <div className="search-box">
+              <span>🔍</span>
+              <input
+                className="search-input"
+                placeholder="Поиск по кличке или номеру..."
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+              />
+            </div>
+            <select className="input status-filter" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
+              <option value="все">все статусы</option>
+              {STATUS_OPTIONS.map((s) => <option key={s}>{s}</option>)}
+            </select>
+            <button className="add-btn add-btn-primary" onClick={addDog}>➕ Новая карточка</button>
+          </div>
+
+          <div className="grid">
+            {filtered.map((d, i) => (
+              <DogCard key={d.id} dog={d} index={i} onOpen={setOpenId} />
+            ))}
+            {filtered.length === 0 && <div className="empty-hint" style={{ padding: 24 }}>Ничего не найдено.</div>}
+          </div>
+        </React.Fragment>
+      ) : (
+        <DogDetail dog={openDog} onBack={() => setOpenId(null)} onUpdate={updateDog} onDelete={deleteDog} />
+      )}
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", () => {
+    navigator.serviceWorker.register("sw.js").catch((e) => console.error("SW registration failed:", e));
+  });
+}
+</script>
+</body>
+</html>

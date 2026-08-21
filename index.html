@@ -348,6 +348,22 @@ function pad(n) { return String(n).padStart(3, "0"); }
 function todayISO() { return new Date().toISOString().slice(0, 10); }
 function uid(prefix) { return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`; }
 
+// Превращает обычную ссылку "поделиться" с Google Диска в прямую ссылку на картинку.
+// Понимает форматы: /file/d/ID/view, ?id=ID, /open?id=ID, uc?id=ID, thumbnail?id=ID.
+// Остальные ссылки (не Google Drive) возвращает как есть.
+function normalizePhotoUrl(raw) {
+  const url = (raw || "").trim();
+  if (!url) return url;
+  const match =
+    url.match(/drive\.google\.com\/file\/d\/([^/]+)/) ||
+    url.match(/[?&]id=([^&]+)/);
+  if (match && url.includes("drive.google.com")) {
+    const fileId = match[1];
+    return `https://drive.google.com/thumbnail?id=${fileId}&sz=w1000`;
+  }
+  return url;
+}
+
 function blankDog(num) {
   return {
     id: `dog-${Date.now()}-${num}`,
@@ -553,7 +569,7 @@ function DogCard({ dog, onOpen }) {
   return (
     <button className="kcard" style={{ "--stripe": stripe }} onClick={() => onOpen(dog.id)}>
       <div className="kcard-photo">
-        {photo ? <img src={photo.url} alt={dog.name} /> : <span className="kcard-photo-placeholder">🐾</span>}
+        {photo ? <img src={normalizePhotoUrl(photo.url)} alt={dog.name} /> : <span className="kcard-photo-placeholder">🐾</span>}
       </div>
       <div className="kcard-top">
         <span className="kcard-number">№{dog.number}</span>
@@ -579,7 +595,7 @@ function DogListRow({ dog, index, onOpen }) {
   const stripe = ROW_STRIPE_CYCLE[index % ROW_STRIPE_CYCLE.length];
   return (
     <button className="list-row" style={{ "--stripe": stripe }} onClick={() => onOpen(dog.id)}>
-      <div className="list-photo">{photo ? <img src={photo.url} alt={dog.name} /> : "🐾"}</div>
+      <div className="list-photo">{photo ? <img src={normalizePhotoUrl(photo.url)} alt={dog.name} /> : "🐾"}</div>
       <div className="list-body">
         <div className="list-name">№{dog.number} · {dog.name}</div>
         <div className="list-meta">{dog.sex}{dog.color ? ` · ${dog.color}` : ""}</div>
@@ -695,17 +711,17 @@ function PhotosSection({ photos, mainPhotoId, onAdd, onRemove, onSetMain }) {
   const [url, setUrl] = useState("");
   const add = () => {
     if (!url.trim()) return;
-    onAdd({ id: uid("ph"), url: url.trim() });
+    onAdd({ id: uid("ph"), url: normalizePhotoUrl(url) });
     setUrl("");
   };
   return (
     <div className="section">
       <div className="section-title">📷 Фото</div>
-      <div className="hint-box">Пока фото добавляются по ссылке (например, из Google Диска с открытым доступом «по ссылке»). Загрузка файла с телефона напрямую — следующий шаг, для него нужно подключить хранилище файлов.</div>
+      <div className="hint-box">Пока фото добавляются по ссылке. Можно вставлять обычную ссылку «Поделиться» с Google Диска — она сама преобразуется в рабочую картинку. Важно: у файла должен быть доступ «Всем, у кого есть ссылка».</div>
       <div className="photo-grid">
         {photos.map((p) => (
           <div key={p.id} className="photo-tile">
-            <img src={p.url} alt="" />
+            <img src={normalizePhotoUrl(p.url)} alt="" />
             {p.id === mainPhotoId && <span className="photo-tile-main">главное</span>}
             <div className="photo-tile-actions">
               {p.id !== mainPhotoId && <button className="photo-tile-btn" onClick={() => onSetMain(p.id)} title="сделать главным">★</button>}
@@ -801,7 +817,7 @@ function DogDetail({ dog, onBack, onUpdate, onDelete }) {
   const addPhotoFromHero = () => {
     const url = window.prompt("Ссылка на фото (https://...)");
     if (!url || !url.trim()) return;
-    const p = { id: uid("ph"), url: url.trim() };
+    const p = { id: uid("ph"), url: normalizePhotoUrl(url) };
     commitNow({ photos: [...(local.photos || []), p], mainPhotoId: local.mainPhotoId || p.id });
   };
 
@@ -819,7 +835,7 @@ function DogDetail({ dog, onBack, onUpdate, onDelete }) {
       </div>
 
       <div className="detail-photo-hero">
-        {photo ? <img src={photo.url} alt="" /> : <span className="kcard-photo-placeholder">🐾</span>}
+        {photo ? <img src={normalizePhotoUrl(photo.url)} alt="" /> : <span className="kcard-photo-placeholder">🐾</span>}
         <button className="hero-camera-btn" onClick={addPhotoFromHero} title="Добавить фото">📷</button>
       </div>
 

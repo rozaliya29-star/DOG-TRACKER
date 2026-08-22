@@ -19,6 +19,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.5/babel.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/firebase/12.16.0/firebase-app-compat.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/firebase/12.16.0/firebase-firestore-compat.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/firebase/12.16.0/firebase-storage-compat.min.js"></script>
 <style>
 * { box-sizing: border-box; }
 body { margin: 0; }
@@ -344,6 +345,7 @@ const firebaseConfig = {
 };
 firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
+const storage = firebase.storage();
 const DOC_REF = db.collection("kartoteka").doc("main");
 
 const SEX_OPTIONS = ["неизвестно", "кобель", "сука"];
@@ -385,6 +387,24 @@ function normalizePhotoUrl(raw) {
     return `https://drive.google.com/thumbnail?id=${fileId}&sz=w1000`;
   }
   return url;
+}
+
+// Загружает файл в Firebase Storage и возвращает промис с прямой ссылкой на скачивание.
+// folder — подпапка (например "photos" или "documents"), onProgress(0-100) — необязательный колбэк.
+function uploadFileToStorage(file, folder, onProgress) {
+  return new Promise((resolve, reject) => {
+    const safeName = file.name.replace(/[^\w.\-]+/g, "_");
+    const path = `${folder}/${Date.now()}-${Math.random().toString(36).slice(2, 7)}-${safeName}`;
+    const task = storage.ref(path).put(file);
+    task.on(
+      "state_changed",
+      (snap) => {
+        if (onProgress) onProgress(Math.round((snap.bytesTransferred / snap.totalBytes) * 100));
+      },
+      (err) => reject(err),
+      () => task.snapshot.ref.getDownloadURL().then(resolve).catch(reject)
+    );
+  });
 }
 
 function blankDog(num) {
@@ -797,15 +817,33 @@ function TreatmentCourseSection({ list, onAdd, onRemove }) {
 
 function PhotosSection({ photos, mainPhotoId, onAdd, onRemove, onSetMain }) {
   const [url, setUrl] = useState("");
+  const [uploading, setUploading] = useState(null);
+  const fileInputRef = useRef(null);
   const add = () => {
     if (!url.trim()) return;
     onAdd({ id: uid("ph"), url: normalizePhotoUrl(url) });
     setUrl("");
   };
+  const handleFilePick = (e) => {
+    const file = e.target.files && e.target.files[0];
+    e.target.value = "";
+    if (!file) return;
+    setUploading(0);
+    uploadFileToStorage(file, "photos", setUploading)
+      .then((downloadUrl) => {
+        onAdd({ id: uid("ph"), url: downloadUrl });
+        setUploading(null);
+      })
+      .catch((err) => {
+        console.error(err);
+        alert("Не удалось загрузить фото. Проверьте интернет и попробуйте снова.");
+        setUploading(null);
+      });
+  };
   return (
     <div className="section">
       <div className="section-title">📷 Фото</div>
-      <div className="hint-box">Пока фото добавляются по ссылке. Можно вставлять обычную ссылку «Поделиться» с Google Диска — она сама преобразуется в рабочую картинку. Важно: у файла должен быть доступ «Всем, у кого есть ссылка».</div>
+      <div className="hint-box">Можно загрузить фото прямо с телефона, либо вставить ссылку (например, с Google Диска — она сама преобразуется в рабочую картинку; доступ должен быть «Всем, у кого есть ссылка»).</div>
       <div className="photo-grid">
         {photos.map((p) => (
           <div key={p.id} className="photo-tile">
@@ -819,7 +857,13 @@ function PhotosSection({ photos, mainPhotoId, onAdd, onRemove, onSetMain }) {
         ))}
       </div>
       <div className="add-row">
-        <input className="input" placeholder="ссылка на фото (https://...)" value={url} onChange={(e) => setUrl(e.target.value)} />
+        <input type="file" accept="image/*" ref={fileInputRef} style={{ display: "none" }} onChange={handleFilePick} />
+        <button className="add-btn add-btn-small" onClick={() => fileInputRef.current.click()} disabled={uploading !== null}>
+          {uploading !== null ? `Загрузка ${uploading}%…` : "📱 Загрузить с телефона"}
+        </button>
+      </div>
+      <div className="add-row">
+        <input className="input" placeholder="или ссылка на фото (https://...)" value={url} onChange={(e) => setUrl(e.target.value)} />
         <button className="add-btn add-btn-small" onClick={add}>➕ Добавить</button>
       </div>
     </div>
@@ -830,15 +874,35 @@ function DocumentsSection({ documents, onAdd, onRemove }) {
   const [title, setTitle] = useState("");
   const [url, setUrl] = useState("");
   const [date, setDate] = useState(todayISO());
+  const [uploading, setUploading] = useState(null);
+  const fileInputRef = useRef(null);
   const add = () => {
     if (!title.trim() || !url.trim()) return;
     onAdd({ id: uid("d"), title: title.trim(), url: url.trim(), date });
     setTitle(""); setUrl("");
   };
+  const handleFilePick = (e) => {
+    const file = e.target.files && e.target.files[0];
+    e.target.value = "";
+    if (!file) return;
+    const docTitle = title.trim() || file.name;
+    setUploading(0);
+    uploadFileToStorage(file, "documents", setUploading)
+      .then((downloadUrl) => {
+        onAdd({ id: uid("d"), title: docTitle, url: downloadUrl, date });
+        setTitle("");
+        setUploading(null);
+      })
+      .catch((err) => {
+        console.error(err);
+        alert("Не удалось загрузить документ. Проверьте интернет и попробуйте снова.");
+        setUploading(null);
+      });
+  };
   return (
     <div className="section">
       <div className="section-title">📄 Документы</div>
-      <div className="hint-box">Ветпаспорт, анализы, УЗИ, договоры — загрузите файл в облако (Google Диск / Яндекс.Диск), откройте доступ по ссылке и вставьте её сюда.</div>
+      <div className="hint-box">Ветпаспорт, анализы, УЗИ, договоры — можно загрузить файл прямо с телефона (укажите название ниже перед загрузкой) или вставить ссылку на файл в облаке.</div>
       <div className="log-list">
         {documents.length === 0 && <div className="empty-hint">Документов пока нет.</div>}
         {documents.slice().reverse().map((d) => (
@@ -852,8 +916,16 @@ function DocumentsSection({ documents, onAdd, onRemove }) {
       <div className="add-row add-row-wrap">
         <input type="date" className="input input-date" value={date} onChange={(e) => setDate(e.target.value)} />
         <input className="input" placeholder="название (напр. ветпаспорт)" value={title} onChange={(e) => setTitle(e.target.value)} />
-        <input className="input" placeholder="ссылка" value={url} onChange={(e) => setUrl(e.target.value)} />
-        <button className="add-btn add-btn-small" onClick={add}>➕ Добавить</button>
+      </div>
+      <div className="add-row">
+        <input type="file" ref={fileInputRef} style={{ display: "none" }} onChange={handleFilePick} />
+        <button className="add-btn add-btn-small" onClick={() => fileInputRef.current.click()} disabled={uploading !== null}>
+          {uploading !== null ? `Загрузка ${uploading}%…` : "📱 Загрузить файл с телефона"}
+        </button>
+      </div>
+      <div className="add-row">
+        <input className="input" placeholder="или ссылка на файл" value={url} onChange={(e) => setUrl(e.target.value)} />
+        <button className="add-btn add-btn-small" onClick={add}>➕ Добавить по ссылке</button>
       </div>
     </div>
   );
@@ -902,11 +974,27 @@ function DogDetail({ dog, onBack, onUpdate, onDelete }) {
     if (local.mainPhotoId === id) patch.mainPhotoId = photos[0] ? photos[0].id : null;
     commitNow(patch);
   };
+  const heroFileInputRef = useRef(null);
+  const [heroUploading, setHeroUploading] = useState(false);
   const addPhotoFromHero = () => {
-    const url = window.prompt("Ссылка на фото (https://...)");
-    if (!url || !url.trim()) return;
-    const p = { id: uid("ph"), url: normalizePhotoUrl(url) };
-    commitNow({ photos: [...(local.photos || []), p], mainPhotoId: local.mainPhotoId || p.id });
+    heroFileInputRef.current && heroFileInputRef.current.click();
+  };
+  const handleHeroFilePick = (e) => {
+    const file = e.target.files && e.target.files[0];
+    e.target.value = "";
+    if (!file) return;
+    setHeroUploading(true);
+    uploadFileToStorage(file, "photos")
+      .then((downloadUrl) => {
+        const p = { id: uid("ph"), url: downloadUrl };
+        commitNow({ photos: [...(local.photos || []), p], mainPhotoId: local.mainPhotoId || p.id });
+        setHeroUploading(false);
+      })
+      .catch((err) => {
+        console.error(err);
+        alert("Не удалось загрузить фото. Проверьте интернет и попробуйте снова.");
+        setHeroUploading(false);
+      });
   };
 
   const ster = lastSterilization(local);
@@ -924,7 +1012,8 @@ function DogDetail({ dog, onBack, onUpdate, onDelete }) {
 
       <div className="detail-photo-hero">
         {photo ? <img src={normalizePhotoUrl(photo.url)} alt="" /> : <span className="kcard-photo-placeholder">🐾</span>}
-        <button className="hero-camera-btn" onClick={addPhotoFromHero} title="Добавить фото">📷</button>
+        <input type="file" accept="image/*" ref={heroFileInputRef} style={{ display: "none" }} onChange={handleHeroFilePick} />
+        <button className="hero-camera-btn" onClick={addPhotoFromHero} title="Добавить фото" disabled={heroUploading}>{heroUploading ? "…" : "📷"}</button>
       </div>
 
       <div className="detail-body">

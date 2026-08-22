@@ -332,6 +332,19 @@ body { margin: 0; }
 </head>
 <body>
 <div id="root"></div>
+<script>
+  window.addEventListener("error", function (e) {
+    var root = document.getElementById("root");
+    if (root && !root.hasChildNodes()) {
+      root.innerHTML =
+        '<div style="font-family: sans-serif; padding: 20px; color: #a33; background: #fff3f3; margin: 16px; border-radius: 12px; line-height:1.5;">' +
+        '<b>Ошибка загрузки приложения</b><br><br>' +
+        (e.message || "Неизвестная ошибка") +
+        '<br><br><span style="color:#888; font-size: 13px;">Файл: ' + (e.filename || "?") + ", строка " + (e.lineno || "?") + '</span>' +
+        '</div>';
+    }
+  });
+</script>
 <script type="text/babel">
 const { useState, useEffect, useMemo, useRef, useCallback } = React;
 
@@ -345,7 +358,12 @@ const firebaseConfig = {
 };
 firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
-const storage = firebase.storage();
+let storage = null;
+try {
+  if (firebase.storage) storage = firebase.storage();
+} catch (e) {
+  console.error("Firebase Storage недоступен:", e);
+}
 const DOC_REF = db.collection("kartoteka").doc("main");
 
 const SEX_OPTIONS = ["неизвестно", "кобель", "сука"];
@@ -393,6 +411,10 @@ function normalizePhotoUrl(raw) {
 // folder — подпапка (например "photos" или "documents"), onProgress(0-100) — необязательный колбэк.
 function uploadFileToStorage(file, folder, onProgress) {
   return new Promise((resolve, reject) => {
+    if (!storage) {
+      reject(new Error("Firebase Storage не инициализирован"));
+      return;
+    }
     const safeName = file.name.replace(/[^\w.\-]+/g, "_");
     const path = `${folder}/${Date.now()}-${Math.random().toString(36).slice(2, 7)}-${safeName}`;
     const task = storage.ref(path).put(file);

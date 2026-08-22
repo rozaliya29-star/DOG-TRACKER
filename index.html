@@ -14,12 +14,16 @@
 <meta name="mobile-web-app-capable" content="yes">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet">
-<script crossorigin src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
-<script crossorigin src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
-<script crossorigin src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.5/babel.min.js"></script>
-<script crossorigin src="https://www.gstatic.com/firebasejs/12.16.0/firebase-app-compat.js"></script>
-<script crossorigin src="https://www.gstatic.com/firebasejs/12.16.0/firebase-firestore-compat.js"></script>
-<script crossorigin src="https://www.gstatic.com/firebasejs/12.16.0/firebase-storage-compat.js"></script>
+<script>
+  window.__loadFails = [];
+  function __scriptFail(name) { window.__loadFails.push(name); }
+</script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js" onerror="__scriptFail('react')"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js" onerror="__scriptFail('react-dom')"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.5/babel.min.js" onerror="__scriptFail('babel-standalone')"></script>
+<script src="https://www.gstatic.com/firebasejs/12.16.0/firebase-app-compat.js" onerror="__scriptFail('firebase-app-compat')"></script>
+<script src="https://www.gstatic.com/firebasejs/12.16.0/firebase-firestore-compat.js" onerror="__scriptFail('firebase-firestore-compat')"></script>
+<script src="https://www.gstatic.com/firebasejs/12.16.0/firebase-storage-compat.js" onerror="__scriptFail('firebase-storage-compat')"></script>
 <style>
 * { box-sizing: border-box; }
 body { margin: 0; }
@@ -337,14 +341,31 @@ body { margin: 0; }
     var root = document.getElementById("root");
     if (root && !root.hasChildNodes()) {
       var stack = (e.error && e.error.stack) ? e.error.stack : "";
+      var fails = window.__loadFails && window.__loadFails.length
+        ? '<br><br><b>Не загрузились файлы:</b> ' + window.__loadFails.join(", ")
+        : '';
       root.innerHTML =
         '<div style="font-family: sans-serif; padding: 20px; color: #a33; background: #fff3f3; margin: 16px; border-radius: 12px; line-height:1.5; white-space: pre-wrap; word-break: break-word;">' +
         '<b>Ошибка загрузки приложения</b><br><br>' +
         (e.message || "Неизвестная ошибка") +
+        fails +
         '<br><br><span style="color:#888; font-size: 13px;">Файл: ' + (e.filename || "?") + ", строка " + (e.lineno || "?") + '</span>' +
         (stack ? '<br><br><span style="color:#888; font-size: 12px;">' + stack + '</span>' : '') +
         '</div>';
     }
+  });
+  window.addEventListener("load", function () {
+    setTimeout(function () {
+      var root = document.getElementById("root");
+      if (root && !root.hasChildNodes()) {
+        var fails = window.__loadFails && window.__loadFails.length
+          ? '<br><br><b>Не загрузились файлы:</b> ' + window.__loadFails.join(", ")
+          : '<br><br>Явной ошибки не зафиксировано — вероятно, проблема в самом коде приложения (ошибка при разборе/сборке скрипта). Пришлите этот текст разработчику.';
+        root.innerHTML =
+          '<div style="font-family: sans-serif; padding: 20px; color: #a33; background: #fff3f3; margin: 16px; border-radius: 12px; line-height:1.5;">' +
+          '<b>Приложение не открылось</b>' + fails + '</div>';
+      }
+    }, 3000);
   });
 </script>
 <script type="text/babel">

@@ -127,6 +127,26 @@ body { margin: 0; }
 .stat-num { font-family: 'Fraunces', serif; font-weight: 700; font-size: 19px; color: var(--ink); line-height: 1; }
 .stat-label { font-size: 10.5px; color: var(--ink-soft); line-height: 1.25; }
 
+/* Notifications */
+.notif-overlay { position: fixed; inset: 0; background: rgba(30,35,45,0.42); display: flex; align-items: flex-start; justify-content: center; padding: 64px 14px 14px; z-index: 60; }
+.notif-panel { background: #fff; border-radius: 18px; width: 100%; max-width: 420px; max-height: 78vh; overflow-y: auto; box-shadow: 0 24px 60px -12px rgba(20,25,35,0.35); }
+.notif-panel-header { display: flex; align-items: center; justify-content: space-between; padding: 16px 16px 12px; font-family: 'Fraunces', serif; font-weight: 700; font-size: 17px; color: var(--ink); border-bottom: 1px solid var(--line); position: sticky; top: 0; background: #fff; }
+.notif-body { padding: 6px 14px 16px; }
+.notif-section { margin-top: 14px; }
+.notif-section-title { font-size: 11.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; color: var(--ink-faint); margin-bottom: 6px; padding-left: 2px; }
+.notif-section-today .notif-section-title { color: var(--rose-dark); }
+.notif-section-soon .notif-section-title { color: var(--purple-dark); }
+.notif-section-overdue .notif-section-title { color: var(--danger, #d64545); }
+.notif-row-wrap { margin-bottom: 6px; }
+.notif-row { width: 100%; display: flex; align-items: center; gap: 10px; background: var(--bg-soft); border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; cursor: pointer; text-align: left; font-family: 'Inter', sans-serif; }
+.notif-row-icon { font-size: 16px; }
+.notif-row-text { flex: 1; font-size: 13.5px; color: var(--ink); font-weight: 600; }
+.notif-row-chevron { font-size: 10px; color: var(--ink-faint); }
+.notif-detail-list { display: flex; flex-direction: column; gap: 4px; padding: 6px 4px 2px 14px; }
+.notif-detail-item { display: flex; align-items: center; justify-content: space-between; gap: 8px; background: none; border: none; border-left: 2px solid var(--line); padding: 6px 0 6px 10px; font-size: 12.5px; color: var(--ink-soft); text-align: left; cursor: pointer; }
+.notif-detail-item:hover { color: var(--navy); border-left-color: var(--navy); }
+.notif-detail-date { color: var(--ink-faint); font-size: 11.5px; white-space: nowrap; }
+
 /* View toggle */
 .view-toggle { display: flex; background: var(--bg-soft); border: 1px solid var(--line); border-radius: 999px; padding: 3px; gap: 2px; }
 .view-toggle-btn { border: none; background: none; width: 32px; height: 32px; border-radius: 999px; display: flex; align-items: center; justify-content: center; cursor: pointer; color: var(--ink-soft); font-size: 14px; }
@@ -209,6 +229,9 @@ body { margin: 0; }
 .detail-topbar-title { font-family: 'Fraunces', serif; font-weight: 600; font-size: 15px; color: var(--ink); }
 .round-icon-btn { width: 34px; height: 34px; border-radius: 50%; background: var(--bg-soft); border: 1px solid var(--line); color: var(--ink); font-size: 16px; display: flex; align-items: center; justify-content: center; cursor: pointer; }
 .round-icon-btn:hover { border-color: var(--navy); }
+.back-btn { width: 38px; height: 38px; border-radius: 50%; background: var(--navy); border: none; color: #fff; font-size: 20px; font-weight: 700; display: flex; align-items: center; justify-content: center; cursor: pointer; box-shadow: 0 4px 12px -3px rgba(52,65,79,0.45); }
+.back-btn:hover { background: var(--navy-dark, var(--navy)); transform: translateX(-1px); }
+.back-btn:active { transform: scale(0.94); }
 
 .detail-photo-hero { position: relative; width: 100%; aspect-ratio: 4/3; background: var(--bg-soft); display: flex; align-items: center; justify-content: center; }
 .detail-photo-hero img { width: 100%; height: 100%; object-fit: cover; display: block; }
@@ -324,15 +347,15 @@ const db = firebase.firestore();
 const DOC_REF = db.collection("kartoteka").doc("main");
 
 const SEX_OPTIONS = ["неизвестно", "кобель", "сука"];
-const STATUS_OPTIONS = ["ищет дом", "уличные", "на лечении", "пристроен"];
+const STATUS_OPTIONS = ["в приюте", "уличные", "на лечении", "пристроен"];
 const STATUS_COLORS = {
-  "ищет дом": "var(--navy)",
+  "в приюте": "var(--navy)",
   "уличные": "var(--slate)",
   "на лечении": "var(--purple)",
   "пристроен": "var(--rose)",
 };
 const STATUS_CHIP_TONE = {
-  "ищет дом": "navy",
+  "в приюте": "navy",
   "уличные": "slate",
   "на лечении": "purple",
   "пристроен": "rose",
@@ -371,7 +394,9 @@ function blankDog(num) {
     name: `Щенок №${num}`,
     sex: "неизвестно",
     color: "",
-    status: "ищет дом",
+    status: "в приюте",
+    arrivalDate: "",
+    arrivalSource: "",
     ageEntries: [],
     medicalLog: [],
     treatmentCourses: [],
@@ -400,8 +425,8 @@ function fmtDate(d) {
 // migrates any older card shape (pre-tabs, unified "treatments" log, "в передержке" status, etc.)
 // into the current schema without losing anything already recorded.
 function fixRetiredStatus(status) {
-  if (status === "в передержке" || status === "на передержке") return "ищет дом";
-  return status || "ищет дом";
+  if (status === "в передержке" || status === "на передержке") return "в приюте";
+  return status || "в приюте";
 }
 
 function migrateDog(d) {
@@ -556,6 +581,69 @@ function parasiteDue(dog) {
 function hasActiveTreatment(dog) {
   const today = todayISO();
   return (dog.treatmentCourses || []).some((c) => !c.endDate || c.endDate >= today);
+}
+function collectNotifications(dogs) {
+  const today = todayISO();
+  const future = new Date();
+  future.setDate(future.getDate() + 7);
+  const in7 = future.toISOString().slice(0, 10);
+  const buckets = { overdue: [], today: [], soon: [] };
+  const classify = (dateStr) => {
+    if (!dateStr) return null;
+    if (dateStr < today) return "overdue";
+    if (dateStr === today) return "today";
+    if (dateStr <= in7) return "soon";
+    return null;
+  };
+  const CATEGORY_LABEL = {
+    vaccination: { one: "вакцинация", few: "вакцинации", many: "вакцинаций", icon: "💉" },
+    parasite: { one: "обработка", few: "обработки", many: "обработок", icon: "🧴" },
+    vetcheck: { one: "ветеринарный контроль", few: "ветеринарных контроля", many: "ветеринарных контролей", icon: "🩺" },
+    course: { one: "курс лекарств заканчивается", few: "курса лекарств заканчиваются", many: "курсов лекарств заканчивается", icon: "💊" },
+  };
+  (dogs || []).forEach((dog) => {
+    (dog.medicalLog || []).forEach((e) => {
+      const bucket = classify(e.nextDate);
+      if (!bucket) return;
+      let category = null;
+      if (e.type === "Вакцинация") category = "vaccination";
+      else if (e.type === "От глистов" || e.type === "От блох/клещей") category = "parasite";
+      else if (e.type === "Ветосмотр") category = "vetcheck";
+      if (!category) return;
+      buckets[bucket].push({ dogId: dog.id, dogName: dog.name, dogNumber: dog.number, category, date: e.nextDate });
+    });
+    (dog.treatmentCourses || []).forEach((c) => {
+      const bucket = classify(c.endDate);
+      if (!bucket) return;
+      buckets[bucket].push({ dogId: dog.id, dogName: dog.name, dogNumber: dog.number, category: "course", date: c.endDate });
+    });
+  });
+  const summarize = (items) => {
+    const byCategory = {};
+    items.forEach((it) => {
+      if (!byCategory[it.category]) byCategory[it.category] = [];
+      byCategory[it.category].push(it);
+    });
+    return Object.keys(byCategory).map((cat) => ({
+      category: cat,
+      label: CATEGORY_LABEL[cat],
+      items: byCategory[cat],
+      count: byCategory[cat].length,
+    }));
+  };
+  const total = buckets.overdue.length + buckets.today.length + buckets.soon.length;
+  return {
+    total,
+    overdue: summarize(buckets.overdue),
+    today: summarize(buckets.today),
+    soon: summarize(buckets.soon),
+  };
+}
+function pluralRu(n, forms) {
+  const n10 = n % 10, n100 = n % 100;
+  if (n10 === 1 && n100 !== 11) return forms.one;
+  if (n10 >= 2 && n10 <= 4 && (n100 < 10 || n100 >= 20)) return forms.few;
+  return forms.many;
 }
 function recordCount(dog) {
   return (dog.medicalLog || []).length + (dog.treatmentCourses || []).length;
@@ -829,7 +917,7 @@ function DogDetail({ dog, onBack, onUpdate, onDelete }) {
   return (
     <div className="detail">
       <div className="detail-topbar">
-        <button className="round-icon-btn" onClick={handleBack} title="Назад">‹</button>
+        <button className="back-btn" onClick={handleBack} title="Назад">‹</button>
         <span className="detail-topbar-title">Карточка №{local.number}</span>
         <button className="round-icon-btn" title="Ещё">⋮</button>
       </div>
@@ -871,6 +959,27 @@ function DogDetail({ dog, onBack, onUpdate, onDelete }) {
             </div>
           </Field>
         </div>
+
+        <section className="section">
+          <div className="section-title">📥 Откуда прибыл(а) и когда</div>
+          <div className="add-row">
+            <input
+              type="date"
+              className="input input-date"
+              defaultValue={local.arrivalDate || ""}
+              onChange={(e) => commitDebounced("arrivalDate", { arrivalDate: e.target.value })}
+              onBlur={() => debounceTimers.current.arrivalDate && debounceTimers.current.arrivalDate.flush()}
+            />
+          </div>
+          <textarea
+            className="input textarea"
+            rows={3}
+            defaultValue={local.arrivalSource}
+            onChange={(e) => commitDebounced("arrivalSource", { arrivalSource: e.target.value })}
+            onBlur={() => debounceTimers.current.arrivalSource && debounceTimers.current.arrivalSource.flush()}
+            placeholder="напр. подобран(а) на трассе М-4, привезла волонтёр Ирина; или передан(а) прежним хозяином по адресу..."
+          />
+        </section>
 
         <section className="section">
           <div className="section-title">📅 Возраст</div>
@@ -966,6 +1075,62 @@ function SharedContactBar({ meta, onChange }) {
   );
 }
 
+function NotificationsPanel({ dogs, onClose, onOpenDog }) {
+  const data = useMemo(() => collectNotifications(dogs), [dogs]);
+  const [expanded, setExpanded] = useState(null);
+
+  const Section = ({ title, tone, groups }) => {
+    if (groups.length === 0) return null;
+    return (
+      <div className={`notif-section notif-section-${tone}`}>
+        <div className="notif-section-title">{title}</div>
+        {groups.map((g) => {
+          const key = `${title}-${g.category}`;
+          const isOpen = expanded === key;
+          return (
+            <div key={key} className="notif-row-wrap">
+              <button className="notif-row" onClick={() => setExpanded(isOpen ? null : key)}>
+                <span className="notif-row-icon">{g.label.icon}</span>
+                <span className="notif-row-text">{g.count} {pluralRu(g.count, g.label)}</span>
+                <span className="notif-row-chevron">{isOpen ? "︿" : "﹀"}</span>
+              </button>
+              {isOpen && (
+                <div className="notif-detail-list">
+                  {g.items.map((it, i) => (
+                    <button key={i} className="notif-detail-item" onClick={() => { onOpenDog(it.dogId); onClose(); }}>
+                      №{it.dogNumber} · {it.dogName} <span className="notif-detail-date">{fmtDate(it.date)}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    );
+  };
+
+  return (
+    <div className="notif-overlay" onClick={onClose}>
+      <div className="notif-panel" onClick={(e) => e.stopPropagation()}>
+        <div className="notif-panel-header">
+          <span>🔔 Уведомления</span>
+          <button className="round-icon-btn" onClick={onClose}>✕</button>
+        </div>
+        {data.total === 0 ? (
+          <div className="empty-hint" style={{ padding: 20 }}>Пока всё в порядке — просроченных и ближайших дел нет.</div>
+        ) : (
+          <div className="notif-body">
+            <Section title="Сегодня" tone="today" groups={data.today} />
+            <Section title="Через 7 дней" tone="soon" groups={data.soon} />
+            <Section title="Просрочено" tone="overdue" groups={data.overdue} />
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function StatsPanel({ dogs, dueFilter, onSetDueFilter }) {
   const placed = dogs.filter((d) => d.status === "пристроен").length;
   const sterilized = dogs.filter((d) => lastSterilization(d)).length;
@@ -1036,6 +1201,7 @@ function BottomNav({ screen, onSetScreen, onAdd }) {
 function App() {
   const { dogs, meta, loading, persist, saveState, retry, storageAvailable, loadFromBackup } = useDB();
   const [openId, setOpenId] = useState(null);
+  const [showNotifications, setShowNotifications] = useState(false);
   const [screen, setScreen] = useState("home");
   const [query, setQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("все");
@@ -1100,6 +1266,7 @@ function App() {
 
   const placed = dogs.filter((d) => d.status === "пристроен").length;
   const needsAttention = dogs.filter((d) => hasActiveTreatment(d) || vaccinationDue(d) || parasiteDue(d)).length;
+  const notifTotal = useMemo(() => collectNotifications(dogs).total, [dogs]);
 
   return (
     <div className={`app-shell ${!openDog ? "has-bottom-nav" : ""}`}>
@@ -1116,7 +1283,7 @@ function App() {
           {saveState === "error" && <button className="retry-btn" onClick={retry}>🔄 не сохранилось, повторить</button>}
           {saveState === "local" && <button className="retry-btn" onClick={retry}>📴 офлайн, проверить снова</button>}
           {(saveState === "idle" || saveState === "saving") && (
-            <button className="bell-btn">🔔{needsAttention > 0 && <span className="bell-dot"></span>}</button>
+            <button className="bell-btn" onClick={() => setShowNotifications(true)}>🔔{notifTotal > 0 && <span className="bell-dot"></span>}</button>
           )}
         </div>
       </header>
@@ -1153,6 +1320,7 @@ function App() {
             <StatsScreen dogs={dogs} dueFilter={dueFilter} onSetDueFilter={setDueFilterAndShowList} />
           ) : (
             <React.Fragment>
+              <StatsPanel dogs={dogs} dueFilter={dueFilter} onSetDueFilter={setDueFilterAndShowList} />
               <div className="toolbar">
                 <div className="search-box">
                   <span>🔍</span>
@@ -1192,6 +1360,9 @@ function App() {
         </React.Fragment>
       ) : (
         <DogDetail dog={openDog} onBack={() => setOpenId(null)} onUpdate={updateDog} onDelete={deleteDog} />
+      )}
+      {showNotifications && (
+        <NotificationsPanel dogs={dogs} onClose={() => setShowNotifications(false)} onOpenDog={(id) => { setOpenId(id); setScreen("home"); }} />
       )}
     </div>
   );

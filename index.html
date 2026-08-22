@@ -335,8 +335,6 @@ body { margin: 0; }
 </style>
 </head>
 <body>
-<script src="https://cdn.jsdelivr.net/npm/eruda"></script>
-<script>eruda.init();</script>
 <div id="root"></div>
 <script>
   window.addEventListener("error", function (e) {
@@ -1396,13 +1394,14 @@ function App() {
     reader.readAsText(file);
   };
 
+  const notifTotal = useMemo(() => (dogs ? collectNotifications(dogs).total : 0), [dogs]);
+
   if (loading || !dogs) {
     return <div className="app-shell loading-shell"><div className="loading-text">🐾 Открываем картотеку…</div></div>;
   }
 
   const placed = dogs.filter((d) => d.status === "пристроен").length;
   const needsAttention = dogs.filter((d) => hasActiveTreatment(d) || vaccinationDue(d) || parasiteDue(d)).length;
-  const notifTotal = useMemo(() => collectNotifications(dogs).total, [dogs]);
 
   return (
     <div className={`app-shell ${!openDog ? "has-bottom-nav" : ""}`}>
